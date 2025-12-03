@@ -135,7 +135,7 @@ def make_align(
             if len(coords) > 1:
                 traceback_start = random.choice(seq=coords)
                 print(
-                    f"Multiple possible traceback starts: {", ".join(map(str, coords))}"
+                    f"Multiple possible traceback starts: {', '.join(map(str, coords))}"
                 )
                 print(f"Chose random traceback start from choices: {traceback_start}")
             i = traceback_start[0]
