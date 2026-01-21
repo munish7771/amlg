@@ -1,0 +1,16 @@
+--- Dominant Perturbations per Cluster ---
+Cluster 0: Other (0.75)
+Cluster 1: Other (0.77)
+Cluster 2: Other (0.89)
+Cluster 3: Other (0.85)
+Cluster 4: Other (0.80)
+Cluster 5: Other (0.71)
+Cluster 6: Other (0.75)
+Cluster 7: Other (0.57)
+Cluster 8: Other (0.75)
+Cluster 9: Other (0.51)
+Cluster 10: Other (0.65)
+Cluster 11: Other (0.62)
+Cluster 12: TBX2 (0.62)
+Cluster 13: SGK1+S1PR2 (0.49)
+------------------------------------------
