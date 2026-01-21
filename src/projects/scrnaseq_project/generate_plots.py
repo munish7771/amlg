@@ -106,18 +106,26 @@ def generate_plots():
     # Ctrl vs Rest UMAP
     print("Generating Figure: UMAP Ctrl vs Rest...")
     adata.obs['ctrl_vs_rest'] = adata.obs['condition'].apply(lambda x: 'ctrl' if x == 'ctrl' else 'non-ctrl')
-    plt.clf()
-    # Plot non-ctrl first (background)
-    ax = sc.pl.umap(adata[adata.obs['ctrl_vs_rest'] == 'non-ctrl'], show=False, size=10, alpha=0.6)
-    # Overlay ctrl
-    sc.pl.umap(adata[adata.obs['ctrl_vs_rest'] == 'ctrl'], ax=ax, color='ctrl_vs_rest', 
-               palette={'ctrl': '#d62728', 'non-ctrl': '#1f77b4'}, # Red for ctrl to make it pop
-               size=30, show=False)
     
-    # Since we manually layered, we might need to adjust the legend or title manually if sc.pl writes over it
-    # But a simple colored UMAP by group is often safer for automation:
+    # Custom Palette
+    palette = {'ctrl': '#d62728', 'non-ctrl': '#d3d3d3'} # Red vs LightGrey
+    
     plt.clf()
-    sc.pl.umap(adata, color='ctrl_vs_rest', groups=['ctrl', 'non-ctrl'], palette=['#d62728', '#1f77b4'], show=False)
+    # Plot non-ctrl first (background) - Light, small, transparent
+    # We grab the axis from the first plot to overlay the second
+    ax = sc.pl.umap(adata[adata.obs['ctrl_vs_rest'] == 'non-ctrl'], 
+                    color='ctrl_vs_rest', palette=palette,
+                    show=False, size=20, alpha=0.1) # increased size slightly but very low alpha for 'fog' effect
+                    
+    # Overlay ctrl - Bold, large, opaque
+    sc.pl.umap(adata[adata.obs['ctrl_vs_rest'] == 'ctrl'], ax=ax, 
+               color='ctrl_vs_rest', palette=palette, 
+               size=50, alpha=1.0, show=False)
+               
+    plt.title("UMAP: Ctrl vs Rest")
+
+    # The clobbering call has been removed.
+
     
     save_path_umap_ctrl = os.path.join(report_dir, "figure_umap_ctrl.png")
     plt.savefig(save_path_umap_ctrl, dpi=300, bbox_inches='tight')
@@ -198,19 +206,80 @@ def generate_plots():
     plt.close()
     print(f"Saved Composition Plot to {save_path_composition}")
 
-
     
+
     print("Generating Figure 2: Heatmap...")
     # Markers
-    sc.tl.rank_genes_groups(adata, 'leiden', method='t-test')
+    # sc.tl.rank_genes_groups(adata, 'leiden', method='t-test') # Original
+    sc.tl.rank_genes_groups(adata, 'leiden', method='wilcoxon') # Updated to Wilcoxon
     
     # Heatmap
     plt.clf()
     sc.pl.rank_genes_groups_heatmap(adata, n_genes=5, groupby='leiden', show=False)
     save_path_heatmap = os.path.join(report_dir, "figure2_heatmap.png")
     plt.savefig(save_path_heatmap, bbox_inches='tight', dpi=300)
-    plt.close()
+    plt.close() # Close the figure to free memory
     print(f"Saved Heatmap to {save_path_heatmap}")
+
+    # Specific Comparison: 9 vs 12
+    print("Generating 9 vs 12 Comparison...")
+    try:
+        # Check if clusters 9 and 12 exist
+        if '9' in adata.obs['leiden'].cat.categories and '12' in adata.obs['leiden'].cat.categories:
+            # Ensure the previous rank_genes_groups result is cleared or overwritten
+            sc.tl.rank_genes_groups(adata, 'leiden', groups=['9'], reference='12', method='wilcoxon', key_added='rank_genes_9vs12')
+            
+            plt.clf()
+            # Restore to rank genes groups plot as per request ("use the previous")
+            sc.pl.rank_genes_groups(adata, n_genes=20, sharey=False, show=False, key='rank_genes_9vs12')
+                          
+            save_path_9vs12 = os.path.join(report_dir, "figure_comparison_9vs12.png")
+            plt.savefig(save_path_9vs12, bbox_inches='tight', dpi=300)
+            plt.close()
+            print(f"Saved 9vs12 Ranking Plot to {save_path_9vs12}")
+            
+            # Export top genes to text for report
+            result = adata.uns['rank_genes_9vs12']
+            groups = result['names'].dtype.names
+            top_genes_df = pd.DataFrame(
+                {group + '_' + key[:1]: result[key][group]
+                for group in groups for key in ['names', 'pvals_adj', 'logfoldchanges']}).head(5)
+            
+            with open(os.path.join(report_dir, "comparison_9vs12_genes.txt"), "w") as f:
+                f.write("--- Top Genes for Cluster 9 vs Cluster 12 ---\n")
+                f.write(top_genes_df.to_string())
+                f.write("\n\nFull list of top 5 genes for Cluster 9 (vs 12):\n")
+                
+                genes_9 = result['names']['9'][:5]
+                f.write(str(genes_9))
+                f.write("\n\n--- Gene Symbols ---\n")
+                
+                # Check for symbol column
+                symbol_col = None
+                for col in ['gene_name', 'gene_symbols', 'feature_name']:
+                    if col in adata.var.columns:
+                        symbol_col = col
+                        break
+                
+                if symbol_col:
+                    f.write(f"Using column '{symbol_col}' for symbols.\n")
+                    for gid in genes_9:
+                        if gid in adata.var_names:
+                            sym = adata.var.loc[gid, symbol_col]
+                            f.write(f"{gid}: {sym}\n")
+                        else:
+                            f.write(f"{gid}: Not found in var\n")
+                else:
+                    f.write("No symbol column found in adata.var.\n")
+                    f.write(f"Columns: {list(adata.var.columns)}\n")
+
+                f.write("\n------------------------------------------\n")
+
+        else:
+            print("Clusters '9' or '12' not found in adata.obs['leiden']. Skipping 9 vs 12 comparison.")
+    except Exception as e:
+        print(f"Could not run 9vs12 comparison: {e}")
+
 
 if __name__ == "__main__":
     try:
